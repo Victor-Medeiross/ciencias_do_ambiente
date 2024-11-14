@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Firebase Firestore em Tempo Real</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="top-menu">
+        <button>Temperatura</button>
+        <button>Umidade</button>
+        <button>CO²</button>
+      </div>
+
+      <div class="chart"></div>
+
+      <div class="status">
+        <h2>Situação Atual</h2>
+        <div class="status-item">
+          <span>°C</span>
+          <p id="temperatura">0</p>
+        </div>
+        <div class="status-item">
+          <span>%</span>
+          <p id="umidade">0</p>
+        </div>
+        <div class="status-item">
+          <span>CO₂</span>
+          <p id="co2">0</p>
+        </div>
+      </div>
+
+      <div class="alerts">
+        <h2>Alertas</h2>
+        <div id="temperatura-alerts"></div>
+        <div id="umidade-alerts"></div>
+        <div id="co2-alerts"></div>
+      </div>
+
+      <div class="history">
+        <h2>Histórico</h2>
+        <div id="history"></div>
+      </div>
+
+      <!-- Adicione o div com ID "dados" -->
+      <div id="dados"></div>
+    </div>
+
+    <script>
+      // Configuração do Firebase
+      const firebaseConfig = {
+        apiKey: "AIzaSyAiiEqdMOtivQJJXaaAIOGVjQBWl_QWLak",
+        authDomain: "meio-ambiente-12345.firebaseapp.com",
+        projectId: "meio-ambiente-12345",
+        storageBucket: "meio-ambiente-12345.appspot.com",
+        messagingSenderId: "1050596917325",
+        appId: "1:1050596917325:web:a86702c27c8a9cd211dc04",
+        measurementId: "G-06DR64SJWZ",
+      };
+
+      // Inicializa o Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      // Referência à coleção
+      const collectionRef = db.collection("main");
+
+      // Função para exibir dados na tela
+      function renderData(data) {
+        const dadosDiv = document.getElementById("dados");
+        dadosDiv.innerHTML = ""; // Limpa os dados anteriores
+
+        if (data.length > 0) {
+          const mostRecentData = data[data.length - 1]; // Pega o dado mais recente
+          const dataFormatted = mostRecentData.data
+            ? new Date(mostRecentData.data.seconds * 1000).toLocaleString()
+            : "Data não disponível";
+          const medida =
+            mostRecentData.medida !== undefined
+              ? mostRecentData.medida
+              : "Medida não disponível";
+
+          dadosDiv.innerHTML = `
+                    <p><strong>Data:</strong> ${dataFormatted}</p>
+                    <p><strong>Medida:</strong> ${medida}</p>
+                    <hr>
+                `;
+
+          // Atualiza a situação atual
+          const currentTemp = mostRecentData.temperatura || 0;
+          const currentHumidity = mostRecentData.umidade || 0;
+          const currentCo2 = mostRecentData.co2 || 0;
+
+          document.getElementById("temperatura").innerText = currentTemp;
+          document.getElementById("umidade").innerText = currentHumidity;
+          document.getElementById("co2").innerText = currentCo2;
+
+          // Atualiza alertas se necessário
+          updateAlerts(currentTemp, currentHumidity, currentCo2);
+        }
+      }
+
+      function updateAlerts(temperatura, umidade, co2) {
+        const temperaturaAlerts = document.getElementById("temperatura-alerts");
+        const umidadeAlerts = document.getElementById("umidade-alerts");
+        const co2Alerts = document.getElementById("co2-alerts");
+
+        // Lógica simples para alertas
+        temperaturaAlerts.innerText =
+          temperatura > 30 ? "Alerta: Temperatura alta!" : "";
+        umidadeAlerts.innerText = umidade < 20 ? "Alerta: Umidade baixa!" : "";
+        co2Alerts.innerText =
+          co2 > 1000 ? "Alerta: Níveis de CO₂ elevados!" : "";
+      }
+
+      // Função para obter parâmetros da URL
+      function getQueryParams() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+          temperatura: String(params.get("temperatura")) || 0,
+          umidade: String(params.get("umidade")) || 0,
+          co2: String(params.get("co2")) || 0,
+        };
+      }
+
+      // Obtém parâmetros da URL e atualiza o estado inicial
+      const params = getQueryParams();
+      document.getElementById("temperatura").innerText = params.temperatura;
+      document.getElementById("umidade").innerText = params.umidade;
+      document.getElementById("co2").innerText = params.co2;
+      updateAlerts(params.temperatura, params.umidade, params.co2);
+
+      // Monitora alterações na coleção em tempo real
+      collectionRef.onSnapshot(
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          data.sort((a, b) => b.data.seconds - a.data.seconds); // Ordena os dados pela data
+          renderData(data);
+        },
+        (error) => {
+          console.error("Erro ao buscar dados: ", error);
+        }
+      );
+
+      // Adiciona evento de clique ao botão de enviar
+      document
+        .getElementById("submitButton")
+        .addEventListener("click", sendData);
+    </script>
+  </body>
+</html>

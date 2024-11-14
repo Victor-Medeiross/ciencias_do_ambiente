@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Firebase Firestore em Tempo Real</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Dados do Firestore em Tempo Real</h1>
+      <div class="top-menu">
+        <button>Temperatura</button>
+        <button>Umidade</button>
+        <button>CO₂</button>
+      </div>
+
+      <div class="chart"></div>
+
+      <div class="status">
+        <h2>Situação Atual</h2>
+        <div class="status-item">
+          <span>Temperatura:</span>
+          <div id="temp">0</div>
+        </div>
+        <div class="status-item">
+          <span>Umidade:</span>
+          <p id="umidade">0</p>
+        </div>
+        <div class="status-item">
+          <span>CO₂:</span>
+          <p id="co2">0</p>
+        </div>
+      </div>
+
+      <div class="alerts">
+        <h2>Alertas</h2>
+        <div id="temperatura-alerts"></div>
+        <div id="umidade-alerts"></div>
+        <div id="co2-alerts"></div>
+      </div>
+
+      <div class="history">
+        <h2>Histórico</h2>
+        <div id="dados"></div>
+      </div>
+
+      <!-- Formulário para enviar novos dados -->
+      <div>
+        <label for="dataInput">Data:</label>
+        <input type="date" id="dataInput" />
+      </div>
+      <div>
+        <label for="timeInput">Hora:</label>
+        <input type="time" id="timeInput" />
+      </div>
+      <div>
+        <label for="tempInput">Temperatura (°C):</label>
+        <input
+          type="number"
+          id="tempInput"
+          placeholder="Insira a temperatura"
+        />
+      </div>
+      <div>
+        <label for="umidadeInput">Umidade (%):</label>
+        <input type="number" id="umidadeInput" placeholder="Insira a umidade" />
+      </div>
+      <div>
+        <label for="co2Input">CO2 (ppm):</label>
+        <input type="number" id="co2Input" placeholder="Insira o CO2" />
+      </div>
+      <button id="submitButton">Enviar</button>
+    </div>
+
+    <script>
+      // Configuração do Firebase
+      const firebaseConfig = {
+        apiKey: "AIzaSyAiiEqdMOtivQJJXaaAIOGVjQBWl_QWLak",
+        authDomain: "meio-ambiente-12345.firebaseapp.com",
+        projectId: "meio-ambiente-12345",
+        storageBucket: "meio-ambiente-12345.appspot.com",
+        messagingSenderId: "1050596917325",
+        appId: "1:1050596917325:web:a86702c27c8a9cd211dc04",
+        measurementId: "G-06DR64SJWZ",
+      };
+
+      // Inicializa o Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      // Referência à coleção
+      const collectionRef = db.collection("main");
+
+      // Função para exibir dados na tela
+      function renderData(data) {
+        const dadosDiv = document.getElementById("dados");
+        dadosDiv.innerHTML = ""; // Limpa os dados anteriores
+
+        data.forEach((item) => {
+          const dataFormatted = item.data
+            ? new Date(item.data.seconds * 1000).toLocaleString()
+            : "Data não disponível";
+          const temperatura =
+            item.temperatura !== undefined
+              ? item.temperatura
+              : "Temperatura não disponível";
+          const umidade =
+            item.umidade !== undefined
+              ? item.umidade
+              : "Umidade não disponível";
+          const co2 = item.co2 !== undefined ? item.co2 : "CO2 não disponível";
+
+          dadosDiv.innerHTML += `
+                    <p><strong>Data:</strong> ${dataFormatted}</p>
+                    <p><strong>Temperatura:</strong> ${temperatura} °C</p>
+                    <p><strong>Umidade:</strong> ${umidade} %</p>
+                    <p><strong>CO2:</strong> ${co2} ppm</p>
+                    <hr>
+                `;
+        });
+
+        // Atualiza a situação atual com os últimos dados
+        if (data.length > 0) {
+          const mostRecentData = data[0];
+          const currentTemp = mostRecentData.temperatura || 0;
+          const currentHumidity = mostRecentData.umidade || 0;
+          const currentCo2 = mostRecentData.co2 || 0;
+
+          document.getElementById("umidade").innerHTML = "<p>teste</p>";
+          document.getElementById("temp").innerText = currentTemp;
+          document.getElementById("umidade").innerText = currentHumidity;
+          document.getElementById("co2").innerText = currentCo2;
+
+          // Atualiza alertas
+          updateAlerts(currentTemp, currentHumidity, currentCo2);
+        }
+      }
+
+      function updateAlerts(temperatura, umidade, co2) {
+        const temperaturaAlerts = document.getElementById("temperatura-alerts");
+        const umidadeAlerts = document.getElementById("umidade-alerts");
+        const co2Alerts = document.getElementById("co2-alerts");
+
+        // Lógica simples para alertas
+        temperaturaAlerts.innerText =
+          temperatura > 30 ? "Alerta: Temperatura alta!" : "";
+        umidadeAlerts.innerText = umidade < 20 ? "Alerta: Umidade baixa!" : "";
+        co2Alerts.innerText =
+          co2 > 1000 ? "Alerta: Níveis de CO₂ elevados!" : "";
+      }
+
+      // Monitora alterações na coleção em tempo real
+      collectionRef.onSnapshot(
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          renderData(data);
+        },
+        (error) => {
+          console.error("Erro ao buscar dados: ", error);
+        }
+      );
+
+      // Função para enviar dados ao Firestore
+      function sendData() {
+        const dataInput = document.getElementById("dataInput").value;
+        const timeInput = document.getElementById("timeInput").value;
+        const tempInput = document.getElementById("tempInput").value;
+        const umidadeInput = document.getElementById("umidadeInput").value;
+        const co2Input = document.getElementById("co2Input").value;
+
+        // Verifica se a data e a hora foram inseridas
+        if (!dataInput || !timeInput) {
+          alert("Por favor, insira uma data e hora válidas.");
+          return;
+        }
+
+        // Converte a string de data e hora para um objeto Date
+        const [hours, minutes] = timeInput.split(":").map(Number);
+        const dateObject = new Date(dataInput);
+        dateObject.setHours(hours, minutes, 0, 0); // Define a hora
+
+        // Verifica se a data é válida
+        if (isNaN(dateObject.getTime())) {
+          console.error("Data inválida");
+          alert("Por favor, insira uma data válida.");
+          return;
+        }
+
+        // Formata os dados para enviar
+        const dataToSend = {
+          data: firebase.firestore.Timestamp.fromMillis(dateObject.getTime()), // Converte para Timestamp
+          temperatura: String(tempInput),
+          umidade: String(umidadeInput),
+          co2: String(co2Input),
+        };
+
+        // Adiciona um novo documento na coleção
+        collectionRef
+          .add(dataToSend)
+          .then(() => {
+            console.log("Dados enviados com sucesso!");
+          })
+          .catch((error) => {
+            console.error("Erro ao enviar dados: ", error);
+          });
+      }
+
+      // Adiciona evento de clique ao botão de enviar
+      document
+        .getElementById("submitButton")
+        .addEventListener("click", sendData);
+    </script>
+  </body>
+</html>
